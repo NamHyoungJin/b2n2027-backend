@@ -166,7 +166,8 @@ REST_FRAMEWORK = {
 # CORS settings (comma-separated origins, e.g. "http://localhost:3000,http://localhost:3001")
 _cors_origins = os.getenv(
     "CORS_ALLOWED_ORIGINS",
-    "http://localhost:3000,http://localhost:3001,http://localhost:3002,http://localhost:3003",
+    "http://localhost:3000,http://localhost:3001,http://localhost:3002,http://localhost:3003,"
+    "https://dev.b2n2027.org,https://www.b2n2027.org,https://b2n2027.org",
 )
 CORS_ALLOWED_ORIGINS = [o.strip() for o in _cors_origins.split(",") if o.strip()]
 
