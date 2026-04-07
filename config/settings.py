@@ -183,6 +183,44 @@ _admin_rd = os.getenv("ADMIN_JWT_REFRESH_COOKIE_DOMAIN", "").strip()
 ADMIN_JWT_REFRESH_COOKIE_DOMAIN = _admin_rd or None
 ADMIN_JWT_REFRESH_COOKIE_SAMESITE = os.getenv("ADMIN_JWT_REFRESH_COOKIE_SAMESITE", "Lax")
 
+# 이메일 (협찬 문의 등)
+# 1) GMAIL_SENDER + GMAIL_APP_PASSWORD → Gmail SMTP (Google 계정 앱 비밀번호)
+# 2) 그다음 EMAIL_HOST 등 일반 SMTP
+# 3) 둘 다 없으면 콘솔 백엔드(개발용 출력)
+_gmail_sender = os.getenv("GMAIL_SENDER", "").strip()
+_gmail_app_password = os.getenv("GMAIL_APP_PASSWORD", "").strip()
+_email_host = os.getenv("EMAIL_HOST", "").strip()
+
+if _gmail_sender and _gmail_app_password:
+    EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+    EMAIL_HOST = "smtp.gmail.com"
+    EMAIL_PORT = 587
+    EMAIL_USE_TLS = True
+    EMAIL_HOST_USER = _gmail_sender
+    EMAIL_HOST_PASSWORD = _gmail_app_password
+elif _email_host:
+    EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+    EMAIL_HOST = _email_host
+    EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
+    EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True").lower() in ("true", "1", "yes")
+    EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
+    EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
+else:
+    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+
+_default_from = os.getenv("DEFAULT_FROM_EMAIL", "").strip()
+if _default_from:
+    DEFAULT_FROM_EMAIL = _default_from
+elif _gmail_sender:
+    DEFAULT_FROM_EMAIL = _gmail_sender
+else:
+    DEFAULT_FROM_EMAIL = "noreply@b2n2027.org"
+
+SPONSOR_INQUIRY_TO = os.getenv("SPONSOR_INQUIRY_TO", "admin_kr@b2n2027.org")
+
+# Google 클라우드 API 등 (메일 발송과 무관, 필요 시 앱 코드에서 사용)
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "").strip()
+
 # 로깅: QR 코드 생성 등 participants 앱 동작 확인용 (프로덕션 로그 확인)
 LOGGING = {
     "version": 1,

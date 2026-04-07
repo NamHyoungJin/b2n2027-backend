@@ -21,6 +21,7 @@ from django.conf.urls.static import static
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('api/', include('apps.core.urls')),
     path('api/', include('apps.participants.urls')),
     path('api/adminMember/', include('apps.admin_accounts.urls')),
     path('api/notices/', include('apps.board_notice.urls_public')),
