@@ -7,6 +7,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.filters import SearchFilter, OrderingFilter
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 
 from .models import Participant
@@ -22,7 +23,8 @@ logger = logging.getLogger(__name__)
 
 class ParticipantViewSet(viewsets.ModelViewSet):
     """참여자 관리 ViewSet"""
-    
+
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
     queryset = Participant.objects.all()
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ['status', 'register_type', 'payment_method']
@@ -34,7 +36,7 @@ class ParticipantViewSet(viewsets.ModelViewSet):
         """액션에 따라 적절한 Serializer 반환"""
         if self.action == 'list':
             return ParticipantListSerializer
-        elif self.action == 'create':
+        if self.action in ('create', 'update', 'partial_update'):
             return ParticipantCreateSerializer
         return ParticipantSerializer
     
@@ -54,7 +56,17 @@ class ParticipantViewSet(viewsets.ModelViewSet):
             status=status.HTTP_201_CREATED, 
             headers=headers
         )
-    
+
+    def update(self, request, *args, **kwargs):
+        """PUT/PATCH 후 상세는 passport_copy URL 없이 ParticipantSerializer로 반환"""
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        participant = self.get_object()
+        return Response(ParticipantSerializer(participant).data)
+
     @action(detail=True, methods=['get'])
     def calculate_refund(self, request, pk=None):
         """환불 금액 계산"""

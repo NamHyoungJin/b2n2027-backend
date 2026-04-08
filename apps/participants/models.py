@@ -80,6 +80,14 @@ class Participant(models.Model):
         help_text='여권 만료일 (YYYY-MM-DD)',
         db_comment='여권 만료일',
     )
+    passport_copy = models.ImageField(
+        upload_to='passport_copies/',
+        blank=True,
+        null=True,
+        verbose_name='여권 사본',
+        help_text='개인 등록 시 여권 사본 이미지(서버 저장, 공개 URL 미제공)',
+        db_comment='여권 사본 이미지 경로',
+    )
     resident_registration_number = models.CharField(
         max_length=20,
         verbose_name='주민등록번호',
@@ -107,6 +115,21 @@ class Participant(models.Model):
         verbose_name='성별',
         help_text='참가자의 성별 (남성, 여성)',
         db_comment='참가자의 성별 (남성, 여성)'
+    )
+    ATTENDEE_CATEGORY_CHOICES = [
+        ('ADULT', '성인 (Adult)'),
+        ('YOUTH', '청소년 (Youth)'),
+        ('CHILDREN', '어린이 (Children)'),
+        ('VOLUNTEER', '발렌티어 (Volunteer)'),
+        ('B2N_STAFF', '스태프 (B2N Staff)'),
+    ]
+    attendee_category = models.CharField(
+        max_length=20,
+        choices=ATTENDEE_CATEGORY_CHOICES,
+        default='ADULT',
+        verbose_name='참석자 구분',
+        help_text='성인·청소년·어린이·발렌티어·스태프',
+        db_comment='참석자 구분',
     )
     country = models.CharField(
         max_length=50, 
@@ -165,6 +188,15 @@ class Participant(models.Model):
         verbose_name='결제 방식',
         help_text='무통장입금, 카드결제, 현금결제 중 선택',
         db_comment='결제 방식 (BANK:무통장, CARD:카드, CASH:현금)'
+    )
+    product_application = models.ForeignKey(
+        'products.ProductApplication',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='participants',
+        verbose_name='상품 신청(금액 스냅샷)',
+        help_text='www 등록 시 공개 신청 API로 생성된 ProductApplication',
     )
     status = models.CharField(
         max_length=20, 
