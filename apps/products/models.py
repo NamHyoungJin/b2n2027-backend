@@ -59,17 +59,69 @@ class ProductDetailImage(models.Model):
 class ProductOptionItem(models.Model):
     """비전트립 코스 옵션 — 행 단위로 price_before / price_after (PlanDoc §12)."""
 
+    AUDIENCE_GLOBAL = "GLOBAL"
+    AUDIENCE_KOREA = "KOREA"
+    AUDIENCE_CHOICES = [
+        (AUDIENCE_GLOBAL, "GLOBAL"),
+        (AUDIENCE_KOREA, "KOREA"),
+    ]
+
+    TIER_FIRST = "FIRST"
+    TIER_SECOND = "SECOND"
+    TIER_THIRD = "THIRD"
+    CHOICE_TIER_CHOICES = [
+        (TIER_FIRST, "FIRST"),
+        (TIER_SECOND, "SECOND"),
+        (TIER_THIRD, "THIRD"),
+    ]
+
     product = models.ForeignKey(
         Product,
         on_delete=models.CASCADE,
         related_name="option_items",
     )
-    name = models.CharField(max_length=200)
-    description = models.TextField(blank=True, default="")
+    name = models.CharField(max_length=200, verbose_name="비전트립 제목")
+    description = models.TextField(
+        blank=True,
+        default="",
+        verbose_name="기본 내용",
+        help_text="짧은 안내·한 줄 요약(plain text 권장).",
+    )
+    detail_content = models.TextField(
+        blank=True,
+        default="",
+        verbose_name="상세 내용",
+        help_text="TipTap HTML — 공지 본문과 동일 에디터(PlanDoc/board_notice.md).",
+    )
+    image_s3_key = models.CharField(
+        max_length=1024,
+        blank=True,
+        default="",
+        verbose_name="상품 이미지 객체 키",
+        help_text="S3 또는 로컬 MEDIA 경로 키 (product-option-items/...). PlanDoc/s3Rules.md",
+    )
+    image = models.ImageField(
+        upload_to="products/option_items/",
+        blank=True,
+        null=True,
+        verbose_name="상품 이미지(레거시)",
+    )
     price_before = models.DecimalField(max_digits=12, decimal_places=0)
     price_after = models.DecimalField(max_digits=12, decimal_places=0)
     is_active = models.BooleanField(default=True)
     sort_order = models.PositiveIntegerField(default=0)
+    audience = models.CharField(
+        max_length=10,
+        choices=AUDIENCE_CHOICES,
+        default=AUDIENCE_GLOBAL,
+        verbose_name="표시 구분",
+    )
+    choice_tier = models.CharField(
+        max_length=10,
+        choices=CHOICE_TIER_CHOICES,
+        default=TIER_FIRST,
+        verbose_name="선택 구분(지망)",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

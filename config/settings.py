@@ -234,6 +234,14 @@ else:
 
 SPONSOR_INQUIRY_TO = os.getenv("SPONSOR_INQUIRY_TO", "admin_kr@b2n2027.org")
 
+# S3 (비공개 버킷 + Presigned URL) — PlanDoc/s3Rules.md / 상품 옵션 이미지 등
+AWS_S3_BUCKET_NAME = os.getenv("AWS_S3_BUCKET_NAME", "").strip()
+AWS_S3_REGION = os.getenv("AWS_S3_REGION", "ap-northeast-2").strip()
+AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID", "").strip()
+AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY", "").strip()
+# Presigned GET 유효 시간(초). 비어 있으면 7일.
+AWS_S3_PRESIGNED_GET_EXPIRES = int(os.getenv("AWS_S3_PRESIGNED_GET_EXPIRES", str(7 * 24 * 3600)))
+
 # 알리고 문자 (관리자 메시지 모듈)
 ALIGO_API_KEY = os.getenv("ALIGO_API_KEY", "").strip()
 ALIGO_USER_ID = os.getenv("ALIGO_USER_ID", "").strip()

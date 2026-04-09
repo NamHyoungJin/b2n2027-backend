@@ -29,8 +29,17 @@ class ProductAdmin(admin.ModelAdmin):
 
 @admin.register(ProductOptionItem)
 class ProductOptionItemAdmin(admin.ModelAdmin):
-    list_display = ("name", "product", "price_before", "price_after", "is_active", "sort_order")
-    list_filter = ("is_active",)
+    list_display = (
+        "name",
+        "product",
+        "audience",
+        "choice_tier",
+        "price_before",
+        "price_after",
+        "is_active",
+        "sort_order",
+    )
+    list_filter = ("is_active", "audience", "choice_tier")
 
 
 @admin.register(ProductApplication)

@@ -1,4 +1,7 @@
+from django.contrib.auth.models import AnonymousUser
 from rest_framework import serializers
+
+from apps.core.s3_storage import delete_storage_key, image_url_for_key
 
 from .models import (
     ApplicationOptionItem,
@@ -48,20 +51,46 @@ class ProductListSerializer(serializers.ModelSerializer):
 
 
 class ProductOptionItemSerializer(serializers.ModelSerializer):
+    """
+    상품 이미지: `POST /api/board/files/upload/` 로 업로드 후 `image_s3_key` 저장 (PlanDoc/s3Rules.md).
+    응답 `image_url`은 Presigned( S3 ) 또는 MEDIA 절대 URL(로컬).
+    """
+
+    image_url = serializers.SerializerMethodField(read_only=True)
+    image_s3_key = serializers.CharField(required=False, allow_blank=True, max_length=1024)
+    clear_image = serializers.BooleanField(write_only=True, required=False, default=False)
+
     class Meta:
         model = ProductOptionItem
         fields = (
             "id",
             "name",
             "description",
+            "detail_content",
+            "image_url",
+            "image_s3_key",
+            "clear_image",
             "price_before",
             "price_after",
             "is_active",
             "sort_order",
+            "audience",
+            "choice_tier",
             "created_at",
             "updated_at",
         )
         read_only_fields = ("id", "created_at", "updated_at")
+
+    def get_image_url(self, obj):
+        if obj.image_s3_key:
+            return image_url_for_key(obj.image_s3_key, self.context.get("request"))
+        if obj.image:
+            request = self.context.get("request")
+            url = obj.image.url
+            if request:
+                return request.build_absolute_uri(url)
+            return url
+        return None
 
     def validate_price_before(self, value):
         if value < 0:
@@ -72,6 +101,47 @@ class ProductOptionItemSerializer(serializers.ModelSerializer):
         if value < 0:
             raise serializers.ValidationError("0 이상이어야 합니다.")
         return value
+
+    def create(self, validated_data):
+        validated_data.pop("clear_image", None)
+        validated_data.setdefault("image_s3_key", "")
+        instance = super().create(validated_data)
+        if instance.image_s3_key:
+            ProductOptionItem.objects.filter(pk=instance.pk).update(image=None)
+        return instance
+
+    def update(self, instance, validated_data):
+        clear_image = validated_data.pop("clear_image", False)
+        new_key = validated_data.get("image_s3_key", serializers.empty)
+
+        old_key = (instance.image_s3_key or "").strip()
+        had_legacy = bool(instance.image)
+
+        if clear_image:
+            if old_key:
+                delete_storage_key(old_key)
+            if had_legacy:
+                instance.image.delete(save=False)
+            validated_data["image_s3_key"] = ""
+            validated_data["image"] = None
+        elif new_key is not serializers.empty:
+            nk = (new_key or "").strip()
+            if nk != old_key:
+                if old_key:
+                    delete_storage_key(old_key)
+                if had_legacy:
+                    instance.image.delete(save=False)
+                validated_data["image"] = None
+            validated_data["image_s3_key"] = nk
+
+        return super().update(instance, validated_data)
+
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        request = self.context.get("request")
+        if request and isinstance(request.user, AnonymousUser):
+            ret.pop("image_s3_key", None)
+        return ret
 
 
 class ProductRetrieveSerializer(serializers.ModelSerializer):
@@ -222,7 +292,9 @@ class ProductApplicationCreateSerializer(serializers.Serializer):
             )
 
         active_option_count = ProductOptionItem.objects.filter(
-            product_id=product_id, is_active=True
+            product_id=product_id,
+            is_active=True,
+            audience=ProductOptionItem.AUDIENCE_GLOBAL,
         ).count()
         if participation_type in ("BEFORE_B2N", "AFTER_B2N") and active_option_count > 0:
             if len(raw_ids) != 1:
@@ -237,6 +309,7 @@ class ProductApplicationCreateSerializer(serializers.Serializer):
                 pk__in=raw_ids,
                 product_id=product_id,
                 is_active=True,
+                audience=ProductOptionItem.AUDIENCE_GLOBAL,
             )
             if qs.count() != len(raw_ids):
                 raise serializers.ValidationError(
