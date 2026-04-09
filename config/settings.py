@@ -34,6 +34,12 @@ DEBUG = os.getenv("DJANGO_DEBUG", "True").lower() in ("true", "1", "yes")
 # Comma-separated list, e.g. "localhost,127.0.0.1,.api.b2n2027.org"
 ALLOWED_HOSTS = [h.strip() for h in os.getenv("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",") if h.strip()]
 
+# nginx 등 리버스 프록시 뒤에서 X-Forwarded-Proto를 반영해 request.is_secure()·쿠키 Secure가 맞게 동작하도록
+_behind_proxy = os.getenv("DJANGO_BEHIND_HTTPS_PROXY", "").strip().lower() in ("1", "true", "yes")
+if _behind_proxy:
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+USE_X_FORWARDED_HOST = os.getenv("DJANGO_USE_X_FORWARDED_HOST", "").strip().lower() in ("1", "true", "yes")
+
 
 # Application definition
 
@@ -169,7 +175,7 @@ REST_FRAMEWORK = {
 _cors_origins = os.getenv(
     "CORS_ALLOWED_ORIGINS",
     "http://localhost:3000,http://localhost:3001,http://localhost:3002,http://localhost:3003,"
-    "https://dev.b2n2027.org,https://www.b2n2027.org,https://b2n2027.org",
+    "https://dev.b2n2027.org,https://www.b2n2027.org,https://b2n2027.org,https://admin.b2n2027.org",
 )
 CORS_ALLOWED_ORIGINS = [o.strip() for o in _cors_origins.split(",") if o.strip()]
 
@@ -184,6 +190,14 @@ ADMIN_JWT_REFRESH_COOKIE_NAME = os.getenv("ADMIN_JWT_REFRESH_COOKIE_NAME", "admi
 _admin_rd = os.getenv("ADMIN_JWT_REFRESH_COOKIE_DOMAIN", "").strip()
 ADMIN_JWT_REFRESH_COOKIE_DOMAIN = _admin_rd or None
 ADMIN_JWT_REFRESH_COOKIE_SAMESITE = os.getenv("ADMIN_JWT_REFRESH_COOKIE_SAMESITE", "Lax")
+# 비우면 request.is_secure() 사용. 운영 HTTPS에서 명시하려면 True 권장(프록시 헤더와 함께)
+_admin_cs = os.getenv("ADMIN_JWT_REFRESH_COOKIE_SECURE", "").strip().lower()
+if _admin_cs in ("true", "1", "yes"):
+    ADMIN_JWT_REFRESH_COOKIE_SECURE = True
+elif _admin_cs in ("false", "0", "no"):
+    ADMIN_JWT_REFRESH_COOKIE_SECURE = False
+else:
+    ADMIN_JWT_REFRESH_COOKIE_SECURE = None
 
 # 이메일 (협찬 문의 등)
 # 1) GMAIL_SENDER + GMAIL_APP_PASSWORD → Gmail SMTP (Google 계정 앱 비밀번호)
