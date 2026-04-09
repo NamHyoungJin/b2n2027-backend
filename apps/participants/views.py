@@ -10,6 +10,8 @@ from rest_framework.filters import SearchFilter, OrderingFilter
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 
+from apps.core.mixins import B2nResponseMixin
+
 from .models import Participant
 from .serializers import (
     ParticipantSerializer,
@@ -21,7 +23,7 @@ from .serializers import (
 logger = logging.getLogger(__name__)
 
 
-class ParticipantViewSet(viewsets.ModelViewSet):
+class ParticipantViewSet(B2nResponseMixin, viewsets.ModelViewSet):
     """참여자 관리 ViewSet"""
 
     parser_classes = [JSONParser, MultiPartParser, FormParser]

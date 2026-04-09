@@ -8,12 +8,14 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.core.mixins import B2nResponseMixin
+
 from .serializers import SponsorInquirySerializer
 
 logger = logging.getLogger(__name__)
 
 
-class SponsorInquiryView(APIView):
+class SponsorInquiryView(B2nResponseMixin, APIView):
     """
     협찬 문의: multipart 폼으로 접수 후 수신 메일함으로 전송.
     첨부 `logo`는 협찬사 로고 이미지(선택).

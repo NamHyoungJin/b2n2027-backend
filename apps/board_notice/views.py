@@ -6,6 +6,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
 from apps.admin_accounts.authentication import AdminJWTAuthentication
+from apps.core.mixins import B2nResponseMixin
 
 from .models import BoardNotice
 from .pagination import NoticePagination
@@ -16,7 +17,7 @@ from .serializers import (
 )
 
 
-class NoticePublicViewSet(viewsets.ReadOnlyModelViewSet):
+class NoticePublicViewSet(B2nResponseMixin, viewsets.ReadOnlyModelViewSet):
     """
     공개 공지 — 인증 없이 목록·상세 조회.
     상세 조회 시 view_count +1
@@ -44,7 +45,7 @@ class NoticePublicViewSet(viewsets.ReadOnlyModelViewSet):
         return Response(serializer.data)
 
 
-class NoticeAdminViewSet(viewsets.ModelViewSet):
+class NoticeAdminViewSet(B2nResponseMixin, viewsets.ModelViewSet):
     """관리자 공지 CRUD — Admin JWT 필수 (PlanDoc 권한 정책)."""
 
     queryset = BoardNotice.objects.all()

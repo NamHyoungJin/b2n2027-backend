@@ -15,6 +15,8 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.core.mixins import B2nResponseMixin
+
 from apps.admin_accounts.authentication import AdminJWTAuthentication
 from apps.admin_accounts.cookies import attach_admin_refresh_cookie, clear_admin_refresh_cookie
 from apps.admin_accounts.jwt_utils import create_admin_member_jwt_tokens
@@ -88,7 +90,7 @@ def _require_settings_admin(user) -> Response | None:
 
 
 @method_decorator(csrf_exempt, name="dispatch")
-class AdminLoginView(APIView):
+class AdminLoginView(B2nResponseMixin, APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
@@ -123,7 +125,7 @@ class AdminLoginView(APIView):
 
 
 @method_decorator(csrf_exempt, name="dispatch")
-class TokenRefreshView(APIView):
+class TokenRefreshView(B2nResponseMixin, APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
@@ -151,7 +153,7 @@ class TokenRefreshView(APIView):
 
 
 @method_decorator(csrf_exempt, name="dispatch")
-class AdminLogoutView(APIView):
+class AdminLogoutView(B2nResponseMixin, APIView):
     authentication_classes = [AdminJWTAuthentication]
     permission_classes = [IsAuthenticated]
 
@@ -166,7 +168,7 @@ class AdminLogoutView(APIView):
 
 
 @method_decorator(csrf_exempt, name="dispatch")
-class AdminListView(APIView):
+class AdminListView(B2nResponseMixin, APIView):
     authentication_classes = [AdminJWTAuthentication]
     permission_classes = [IsAuthenticated]
 
@@ -213,7 +215,7 @@ class AdminListView(APIView):
 
 
 @method_decorator(csrf_exempt, name="dispatch")
-class AdminRegisterView(APIView):
+class AdminRegisterView(B2nResponseMixin, APIView):
     authentication_classes = [AdminJWTAuthentication]
     permission_classes = [IsAuthenticated]
 
@@ -235,7 +237,7 @@ class AdminRegisterView(APIView):
 
 
 @method_decorator(csrf_exempt, name="dispatch")
-class AdminUpdateView(APIView):
+class AdminUpdateView(B2nResponseMixin, APIView):
     authentication_classes = [AdminJWTAuthentication]
     permission_classes = [IsAuthenticated]
 
@@ -268,7 +270,7 @@ class AdminUpdateView(APIView):
 
 
 @method_decorator(csrf_exempt, name="dispatch")
-class AdminDeactivateView(APIView):
+class AdminDeactivateView(B2nResponseMixin, APIView):
     """비활성화(소프트 삭제). 본인 계정은 비활성화 불가."""
 
     authentication_classes = [AdminJWTAuthentication]

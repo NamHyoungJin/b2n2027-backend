@@ -5,6 +5,8 @@ from rest_framework import mixins, status, viewsets
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
+from apps.core.mixins import B2nResponseMixin
+
 from .models import Product, ProductApplication, ProductOptionItem
 from .serializers import (
     ProductApplicationCreateSerializer,
@@ -13,7 +15,7 @@ from .serializers import (
 )
 
 
-class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
+class PublicProductViewSet(B2nResponseMixin, viewsets.ReadOnlyModelViewSet):
     """
     GET /api/public/products/ — ACTIVE 상품 목록
     GET /api/public/products/{id}/ — 상세 (옵션은 is_active만 prefetch)
@@ -41,7 +43,7 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
         return qs
 
 
-class PublicProductApplicationViewSet(mixins.CreateModelMixin, viewsets.GenericViewSet):
+class PublicProductApplicationViewSet(B2nResponseMixin, mixins.CreateModelMixin, viewsets.GenericViewSet):
     """
     POST /api/public/products/applications/ — 신청 생성 (서버 금액 검증 동일)
     """

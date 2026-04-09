@@ -6,6 +6,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.admin_accounts.authentication import AdminJWTAuthentication
+from apps.core.mixins import B2nResponseMixin
 
 from .models import Product, ProductApplication, ProductDetailImage, ProductOptionItem
 from .serializers import (
@@ -18,7 +19,7 @@ from .serializers import (
 )
 
 
-class ProductAdminViewSet(viewsets.ModelViewSet):
+class ProductAdminViewSet(B2nResponseMixin, viewsets.ModelViewSet):
     """관리자 상품 CRUD — Admin JWT 필수."""
 
     queryset = Product.objects.prefetch_related("detail_images", "option_items").all()
@@ -74,7 +75,7 @@ class ProductAdminViewSet(viewsets.ModelViewSet):
             product.detail_images.all().delete()
 
 
-class ProductOptionItemAdminViewSet(viewsets.ModelViewSet):
+class ProductOptionItemAdminViewSet(B2nResponseMixin, viewsets.ModelViewSet):
     """상품별 비전트립 코스 옵션 CRUD — `/board/products/{product_pk}/option-items/`"""
 
     authentication_classes = [AdminJWTAuthentication]
@@ -90,7 +91,9 @@ class ProductOptionItemAdminViewSet(viewsets.ModelViewSet):
         serializer.save(product_id=self.kwargs["product_pk"])
 
 
-class ProductApplicationAdminViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, viewsets.GenericViewSet):
+class ProductApplicationAdminViewSet(
+    B2nResponseMixin, mixins.CreateModelMixin, mixins.ListModelMixin, viewsets.GenericViewSet
+):
     """
     상품 신청 생성·목록 — 서버 `total_amount` 재계산 (PlanDoc §19~23).
     `POST /api/board/products/applications/`

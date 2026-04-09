@@ -15,6 +15,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.admin_accounts.authentication import AdminJWTAuthentication
+from apps.core.mixins import B2nResponseMixin
 
 from .aligo_sms import fetch_sms_list_all, send_mass_with_aligo
 from .email_dispatch import send_email_batch_details
@@ -52,7 +53,7 @@ def _admin_sid(request) -> str:
     return str(getattr(request.user, "memberShipSid", "") or "")
 
 
-class KakaoTemplateListCreateView(APIView):
+class KakaoTemplateListCreateView(B2nResponseMixin, APIView):
     authentication_classes = [AdminJWTAuthentication]
     permission_classes = [IsAuthenticated]
 
@@ -72,7 +73,7 @@ class KakaoTemplateListCreateView(APIView):
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
-class KakaoTemplateDetailView(APIView):
+class KakaoTemplateDetailView(B2nResponseMixin, APIView):
     authentication_classes = [AdminJWTAuthentication]
     permission_classes = [IsAuthenticated]
 
@@ -94,7 +95,7 @@ class KakaoTemplateDetailView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-class MessageBatchListCreateView(APIView):
+class MessageBatchListCreateView(B2nResponseMixin, APIView):
     authentication_classes = [AdminJWTAuthentication]
     permission_classes = [IsAuthenticated]
 
@@ -285,7 +286,7 @@ class MessageBatchListCreateView(APIView):
         return Response(out, status=status.HTTP_201_CREATED)
 
 
-class MessageBatchDetailView(APIView):
+class MessageBatchDetailView(B2nResponseMixin, APIView):
     authentication_classes = [AdminJWTAuthentication]
     permission_classes = [IsAuthenticated]
 
@@ -297,7 +298,7 @@ class MessageBatchDetailView(APIView):
         return Response(MessageBatchSerializer(batch).data)
 
 
-class MessageBatchCancelView(APIView):
+class MessageBatchCancelView(B2nResponseMixin, APIView):
     authentication_classes = [AdminJWTAuthentication]
     permission_classes = [IsAuthenticated]
 
@@ -315,7 +316,7 @@ class MessageBatchCancelView(APIView):
         return Response(MessageBatchSerializer(batch).data)
 
 
-class MessageBatchResendFailedView(APIView):
+class MessageBatchResendFailedView(B2nResponseMixin, APIView):
     authentication_classes = [AdminJWTAuthentication]
     permission_classes = [IsAuthenticated]
 
@@ -388,7 +389,7 @@ class MessageBatchResendFailedView(APIView):
         return Response(MessageBatchSerializer(new_batch).data)
 
 
-class MessageSenderNumberListCreateView(APIView):
+class MessageSenderNumberListCreateView(B2nResponseMixin, APIView):
     authentication_classes = [AdminJWTAuthentication]
     permission_classes = [IsAuthenticated]
 
@@ -433,7 +434,7 @@ class MessageSenderNumberListCreateView(APIView):
         return Response(out, status=status.HTTP_201_CREATED)
 
 
-class MessageSenderNumberDeleteView(APIView):
+class MessageSenderNumberDeleteView(B2nResponseMixin, APIView):
     authentication_classes = [AdminJWTAuthentication]
     permission_classes = [IsAuthenticated]
 
@@ -447,7 +448,7 @@ class MessageSenderNumberDeleteView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-class MessageSenderEmailListCreateView(APIView):
+class MessageSenderEmailListCreateView(B2nResponseMixin, APIView):
     authentication_classes = [AdminJWTAuthentication]
     permission_classes = [IsAuthenticated]
 
@@ -492,7 +493,7 @@ class MessageSenderEmailListCreateView(APIView):
         return Response(out, status=status.HTTP_201_CREATED)
 
 
-class MessageSenderEmailDeleteView(APIView):
+class MessageSenderEmailDeleteView(B2nResponseMixin, APIView):
     authentication_classes = [AdminJWTAuthentication]
     permission_classes = [IsAuthenticated]
 
@@ -506,7 +507,7 @@ class MessageSenderEmailDeleteView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-class MessageTemplateListCreateView(APIView):
+class MessageTemplateListCreateView(B2nResponseMixin, APIView):
     authentication_classes = [AdminJWTAuthentication]
     permission_classes = [IsAuthenticated]
 
@@ -526,7 +527,7 @@ class MessageTemplateListCreateView(APIView):
         return Response(MessageTemplateSerializer(obj).data, status=status.HTTP_201_CREATED)
 
 
-class MessageTemplateDetailView(APIView):
+class MessageTemplateDetailView(B2nResponseMixin, APIView):
     authentication_classes = [AdminJWTAuthentication]
     permission_classes = [IsAuthenticated]
 
@@ -551,7 +552,7 @@ class MessageTemplateDetailView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-class AligoRemainView(APIView):
+class AligoRemainView(B2nResponseMixin, APIView):
     authentication_classes = [AdminJWTAuthentication]
     permission_classes = [IsAuthenticated]
 
@@ -614,7 +615,7 @@ def _is_success_state(state_text: str) -> bool:
     return "완료" in s or "성공" in s
 
 
-class MessageBatchSyncResultView(APIView):
+class MessageBatchSyncResultView(B2nResponseMixin, APIView):
     authentication_classes = [AdminJWTAuthentication]
     permission_classes = [IsAuthenticated]
 
