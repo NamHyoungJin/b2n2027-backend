@@ -241,7 +241,14 @@ ALIGO_USER_ID = os.getenv("ALIGO_USER_ID", "").strip()
 # Google 클라우드 API 등 (메일 발송과 무관, 필요 시 앱 코드에서 사용)
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "").strip()
 
-# 로깅: QR 코드 생성 등 participants 앱 동작 확인용 (프로덕션 로그 확인)
+# 로그 디렉터리 (파일 핸들러용, 없으면 생성)
+LOGS_DIR = BASE_DIR / "logs"
+LOGS_DIR.mkdir(parents=True, exist_ok=True)
+
+# 로깅: 콘솔 + backend/logs/django.log (회전)
+_LOG_MAX_BYTES = int(os.getenv("DJANGO_LOG_MAX_BYTES", str(10 * 1024 * 1024)))
+_LOG_BACKUP_COUNT = int(os.getenv("DJANGO_LOG_BACKUP_COUNT", "5"))
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
@@ -250,18 +257,44 @@ LOGGING = {
             "format": "{levelname} {asctime} {module} {message}",
             "style": "{",
         },
+        "file_line": {
+            "format": "{levelname} {asctime} {name} {module} {message}",
+            "style": "{",
+        },
     },
     "handlers": {
         "console": {
             "class": "logging.StreamHandler",
             "formatter": "verbose",
         },
+        "file": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": str(LOGS_DIR / "django.log"),
+            "maxBytes": _LOG_MAX_BYTES,
+            "backupCount": _LOG_BACKUP_COUNT,
+            "formatter": "file_line",
+            "encoding": "utf-8",
+        },
     },
     "loggers": {
-        "apps.participants": {
+        "django": {
             "level": "INFO",
-            "handlers": ["console"],
+            "handlers": ["console", "file"],
             "propagate": False,
         },
+        "django.request": {
+            "level": "WARNING",
+            "handlers": ["console", "file"],
+            "propagate": False,
+        },
+        "apps.participants": {
+            "level": "INFO",
+            "handlers": ["console", "file"],
+            "propagate": False,
+        },
+    },
+    "root": {
+        "level": "INFO",
+        "handlers": ["console", "file"],
     },
 }
