@@ -55,6 +55,7 @@ INSTALLED_APPS = [
     'apps.admin_accounts',
     'apps.board_notice',
     'apps.products',
+    'apps.messages.apps.MessagesConfig',
 ]
 
 MIDDLEWARE = [
@@ -218,6 +219,10 @@ else:
     DEFAULT_FROM_EMAIL = "noreply@b2n2027.org"
 
 SPONSOR_INQUIRY_TO = os.getenv("SPONSOR_INQUIRY_TO", "admin_kr@b2n2027.org")
+
+# 알리고 문자 (관리자 메시지 모듈)
+ALIGO_API_KEY = os.getenv("ALIGO_API_KEY", "").strip()
+ALIGO_USER_ID = os.getenv("ALIGO_USER_ID", "").strip()
 
 # Google 클라우드 API 등 (메일 발송과 무관, 필요 시 앱 코드에서 사용)
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "").strip()

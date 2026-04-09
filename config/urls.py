@@ -28,6 +28,7 @@ urlpatterns = [
     path('api/board/notices/', include('apps.board_notice.urls_admin')),
     path('api/board/products/', include('apps.products.urls_admin')),
     path('api/public/products/', include('apps.products.urls_public')),
+    path('api/messages/', include('apps.messages.urls')),
 ]
 
 # Development 환경에서 Media 파일 서빙
