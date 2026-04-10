@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 import os
 from pathlib import Path
 
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -33,6 +34,12 @@ DEBUG = os.getenv("DJANGO_DEBUG", "True").lower() in ("true", "1", "yes")
 
 # Comma-separated list, e.g. "localhost,127.0.0.1,.api.b2n2027.org"
 ALLOWED_HOSTS = [h.strip() for h in os.getenv("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",") if h.strip()]
+
+if not DEBUG:
+    if SECRET_KEY == "django-insecure-dev-key-change-in-production":
+        raise ImproperlyConfigured("DJANGO_SECRET_KEY must be set when DJANGO_DEBUG is False.")
+    if not ALLOWED_HOSTS or ALLOWED_HOSTS == ["localhost", "127.0.0.1"]:
+        raise ImproperlyConfigured("DJANGO_ALLOWED_HOSTS must be configured for production.")
 
 # nginx 등 리버스 프록시 뒤에서 X-Forwarded-Proto를 반영해 request.is_secure()·쿠키 Secure가 맞게 동작하도록
 _behind_proxy = os.getenv("DJANGO_BEHIND_HTTPS_PROXY", "").strip().lower() in ("1", "true", "yes")
