@@ -103,6 +103,37 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 
 
+def _env_truthy(name: str) -> bool:
+    return os.getenv(name, "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def _mysql_connection_options() -> dict:
+    """mysqlclient에 넘길 OPTIONS. require_secure_transport=ON 이면 TLS 필요 (오류 3159)."""
+    opts: dict = {
+        "charset": "utf8mb4",
+        "init_command": "SET sql_mode='STRICT_TRANS_TABLES'",
+    }
+    if not _env_truthy("DB_SSL_REQUIRED"):
+        return opts
+
+    ssl_ca = os.getenv("DB_SSL_CA", "").strip()
+    if ssl_ca:
+        opts["ssl"] = {"ca": ssl_ca}
+        return opts
+
+    for candidate in (
+        "/etc/ssl/cert.pem",  # macOS 등
+        "/etc/ssl/certs/ca-certificates.crt",  # Debian/Ubuntu
+    ):
+        if candidate and os.path.isfile(candidate):
+            opts["ssl"] = {"ca": candidate}
+            return opts
+
+    # CA 경로를 못 찾으면 빈 ssl dict로 암호화만 시도 (클라우드·버전에 따라 DB_SSL_CA 설정 필요)
+    opts["ssl"] = {}
+    return opts
+
+
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
@@ -114,10 +145,7 @@ DATABASES = {
         "PASSWORD": os.getenv("DB_PASSWORD", ""),
         "HOST": os.getenv("DB_HOST", "localhost"),
         "PORT": os.getenv("DB_PORT", "3306"),
-        "OPTIONS": {
-            "charset": "utf8mb4",
-            "init_command": "SET sql_mode='STRICT_TRANS_TABLES'",
-        },
+        "OPTIONS": _mysql_connection_options(),
     }
 }
 

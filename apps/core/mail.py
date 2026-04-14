@@ -5,9 +5,12 @@ env: GMAIL_SENDER, GMAIL_APP_PASSWORD(또는 GOOGLE_API_KEY에 앱 비밀번호)
 import logging
 import os
 import smtplib
+from email import encoders
+from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.utils import formataddr
+from typing import Iterable
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +24,7 @@ def send_email(
     from_email: str | None = None,
     from_display_name: str | None = None,
     reply_to: str | None = None,
+    attachments: Iterable[tuple[str, bytes, str | None]] | None = None,
 ) -> bool:
     sender = (os.getenv("GMAIL_SENDER") or "").strip()
     password = (os.getenv("GMAIL_APP_PASSWORD") or os.getenv("GOOGLE_API_KEY") or "").strip()
@@ -57,6 +61,13 @@ def send_email(
     if body_text:
         msg.attach(MIMEText(body_text, "plain", "utf-8"))
     msg.attach(MIMEText(body_html, "html", "utf-8"))
+    for filename, content, mimetype in attachments or []:
+        main_type, sub_type = (mimetype or "application/octet-stream").split("/", 1)
+        part = MIMEBase(main_type, sub_type)
+        part.set_payload(content)
+        encoders.encode_base64(part)
+        part.add_header("Content-Disposition", "attachment", filename=filename)
+        msg.attach(part)
 
     try:
         with smtplib.SMTP("smtp.gmail.com", 587) as server:
