@@ -1,6 +1,9 @@
 from rest_framework import serializers
 
+from apps.core.s3_storage import image_url_for_key
+
 from .models import Inquiry
+from .models import Sponsor
 
 
 MAX_LOGO_BYTES = 5 * 1024 * 1024  # 5MB
@@ -101,3 +104,65 @@ class InquiryDetailSerializer(serializers.ModelSerializer):
 
 class InquiryAnswerSerializer(serializers.Serializer):
     answer = serializers.CharField(max_length=10000, trim_whitespace=True)
+
+
+class SponsorAdminSerializer(serializers.ModelSerializer):
+    image_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Sponsor
+        fields = [
+            "id",
+            "name",
+            "image_s3_key",
+            "image_url",
+            "sort_order",
+            "is_active",
+            "created_at",
+            "updated_at",
+        ]
+
+    def validate(self, attrs):
+        """multipart 등록 시 image_s3_key 누락 방지. 수정 시 빈 문자열로 기존 키가 지워지지 않게 함."""
+        if self.instance is None:
+            key = (attrs.get("image_s3_key") or "").strip()
+            if not key:
+                raise serializers.ValidationError(
+                    {"image_s3_key": "스폰서 이미지를 업로드한 뒤 저장해 주세요."}
+                )
+        elif "image_s3_key" in attrs and not (attrs.get("image_s3_key") or "").strip():
+            attrs.pop("image_s3_key", None)
+        return attrs
+
+    def get_image_url(self, obj: Sponsor):
+        if obj.image_s3_key:
+            return image_url_for_key(obj.image_s3_key, self.context.get("request"))
+        if obj.image:
+            request = self.context.get("request")
+            if request:
+                return request.build_absolute_uri(obj.image.url)
+            return obj.image.url
+        return None
+
+
+class SponsorPublicSerializer(serializers.ModelSerializer):
+    image_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Sponsor
+        fields = [
+            "id",
+            "name",
+            "image_url",
+            "sort_order",
+        ]
+
+    def get_image_url(self, obj: Sponsor):
+        if obj.image_s3_key:
+            return image_url_for_key(obj.image_s3_key, self.context.get("request"))
+        if obj.image:
+            request = self.context.get("request")
+            if request:
+                return request.build_absolute_uri(obj.image.url)
+            return obj.image.url
+        return None

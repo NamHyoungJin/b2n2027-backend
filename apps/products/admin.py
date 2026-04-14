@@ -21,8 +21,8 @@ class ProductOptionItemInline(admin.TabularInline):
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ("name", "base_price", "status", "created_at")
-    list_filter = ("status",)
+    list_display = ("name", "segment", "base_price", "price_a_1n2d", "price_b_day", "status", "created_at")
+    list_filter = ("status", "segment")
     search_fields = ("name",)
     inlines = [ProductDetailImageInline, ProductOptionItemInline]
 

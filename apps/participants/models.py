@@ -16,11 +16,13 @@ class Participant(models.Model):
     """이벤트 참여자 모델"""
     
     STATUS_CHOICES = [
+        ('APPLYING', '신청중'),
+        ('REVIEWING', '신청확인중'),
         ('PENDING', '입금대기'),
-        ('PAID', '등록완료'),
-        ('CANCEL_REQ', '환불요청'),
-        ('CANCELLED', '취소완료'),
-        ('REFUNDED', '환불완료'),
+        ('DEPOSIT_CONFIRMED', '입금확인'),
+        ('PAID', '신청완료'),
+        ('CANCELLED', '취소'),
+        ('REFUNDED', '환불'),
     ]
     
     TYPE_CHOICES = [
@@ -32,12 +34,6 @@ class Participant(models.Model):
         ('BANK', '무통장'),
         ('CARD', '카드'),
         ('CASH', '현금'),
-    ]
-
-    VISION_TRIP_CHOICES = [
-        ('pre', 'B2N 일정 전'),
-        ('post', 'B2N 일정 후'),
-        ('none', '선택 안함'),
     ]
 
     # 기본 정보
@@ -147,31 +143,6 @@ class Participant(models.Model):
         db_comment='소속 교회 또는 단체명 (선택 사항)'
     )
 
-    # 비전트립
-    vision_trip_choice = models.CharField(
-        max_length=10,
-        choices=VISION_TRIP_CHOICES,
-        default='none',
-        verbose_name='비전트립 선택',
-        help_text='B2N 일정 전/후/선택 안함',
-        db_comment='비전트립 선택 (pre/post/none)',
-    )
-    vision_trip_istanbul = models.BooleanField(
-        default=False,
-        verbose_name='이스탄불(체류)',
-        db_comment='비전트립 이스탄불 선택 여부',
-    )
-    vision_trip_antioch = models.BooleanField(
-        default=False,
-        verbose_name='안디옥(디스)',
-        db_comment='비전트립 안디옥 선택 여부',
-    )
-    vision_trip_cappadocia = models.BooleanField(
-        default=False,
-        verbose_name='갑바도기아',
-        db_comment='비전트립 갑바도기아 선택 여부',
-    )
-
     # 상태 관리
     register_type = models.CharField(
         max_length=10, 
@@ -199,12 +170,12 @@ class Participant(models.Model):
         help_text='www 등록 시 공개 신청 API로 생성된 ProductApplication',
     )
     status = models.CharField(
-        max_length=20, 
-        choices=STATUS_CHOICES, 
-        default='PENDING',
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='APPLYING',
         verbose_name='상태',
-        help_text='참가 신청 처리 상태 (입금대기, 등록완료, 환불요청, 취소완료, 환불완료)',
-        db_comment='신청 처리 상태 (PENDING:입금대기, PAID:등록완료, CANCEL_REQ:환불요청, CANCELLED:취소완료, REFUNDED:환불완료)'
+        help_text='신청중→신청확인중→입금대기→입금확인→신청완료 등 처리 단계',
+        db_comment='신청 처리 상태 (APPLYING, REVIEWING, PENDING, DEPOSIT_CONFIRMED, PAID, CANCELLED, REFUNDED)',
     )
     
     # 시스템 관리
@@ -215,6 +186,14 @@ class Participant(models.Model):
         verbose_name='고유 ID',
         help_text='참가자의 고유 식별자 (자동 생성, QR 코드에 사용)',
         db_comment='참가자의 고유 식별자 (자동 생성, QR 코드에 사용)'
+    )
+    group_id = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        db_index=True,
+        verbose_name='그룹 ID',
+        help_text='단체 등록 시 대표(첫 참가자)의 participants.id, 개인 등록 시 본인 id',
+        db_comment='동일 단체 묶음 기준 PK(participants.id). 개인은 본인 id',
     )
     qr_image = models.ImageField(
         upload_to='qrcodes/', 

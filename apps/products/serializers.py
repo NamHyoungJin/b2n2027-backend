@@ -10,7 +10,11 @@ from .models import (
     ProductDetailImage,
     ProductOptionItem,
 )
-from .pricing import compute_total_amount, unit_price_for_option
+from .pricing import (
+    compute_application_total,
+    compute_total_amount,
+    unit_price_for_option,
+)
 
 
 class ProductDetailImageSerializer(serializers.ModelSerializer):
@@ -34,7 +38,10 @@ class ProductListSerializer(serializers.ModelSerializer):
         fields = (
             "id",
             "name",
+            "segment",
             "base_price",
+            "price_a_1n2d",
+            "price_b_day",
             "status",
             "thumbnail_url",
             "created_at",
@@ -155,7 +162,10 @@ class ProductRetrieveSerializer(serializers.ModelSerializer):
             "id",
             "name",
             "description",
+            "segment",
             "base_price",
+            "price_a_1n2d",
+            "price_b_day",
             "status",
             "application_start",
             "application_end",
@@ -186,7 +196,10 @@ class ProductWriteSerializer(serializers.ModelSerializer):
         fields = (
             "name",
             "description",
+            "segment",
             "base_price",
+            "price_a_1n2d",
+            "price_b_day",
             "status",
             "application_start",
             "application_end",
@@ -205,6 +218,16 @@ class ProductWriteSerializer(serializers.ModelSerializer):
     def validate_base_price(self, value):
         if value < 0:
             raise serializers.ValidationError("기본 가격은 0 이상이어야 합니다.")
+        return value
+
+    def validate_price_a_1n2d(self, value):
+        if value < 0:
+            raise serializers.ValidationError("0 이상이어야 합니다.")
+        return value
+
+    def validate_price_b_day(self, value):
+        if value < 0:
+            raise serializers.ValidationError("0 이상이어야 합니다.")
         return value
 
     def validate(self, attrs):
@@ -240,6 +263,8 @@ class ProductApplicationReadSerializer(serializers.ModelSerializer):
             "id",
             "product",
             "participation_type",
+            "additional_product",
+            "additional_tier",
             "total_amount",
             "client_total_amount",
             "applicant_email",
@@ -260,6 +285,11 @@ class ProductApplicationCreateSerializer(serializers.Serializer):
         required=False,
         default=list,
     )
+    additional_product_id = serializers.IntegerField(required=False, allow_null=True)
+    additional_tier = serializers.ChoiceField(
+        choices=["NONE", "ONE_NIGHT_TWO_DAYS", "SAME_DAY"],
+        default="NONE",
+    )
     applicant_email = serializers.EmailField(required=False, allow_blank=True, default="")
     client_total_amount = serializers.DecimalField(
         max_digits=14,
@@ -272,11 +302,17 @@ class ProductApplicationCreateSerializer(serializers.Serializer):
         product_id = attrs["product_id"]
         participation_type = attrs["participation_type"]
         raw_ids = attrs.get("option_item_ids") or []
+        tier = attrs.get("additional_tier") or "NONE"
 
         try:
             product = Product.objects.get(pk=product_id)
         except Product.DoesNotExist as e:
             raise serializers.ValidationError({"product_id": "상품을 찾을 수 없습니다."}) from e
+
+        if getattr(product, "segment", "BASIC") != "BASIC":
+            raise serializers.ValidationError(
+                {"product_id": "행사 신청은 구분이 «기본상품»인 상품만 선택할 수 있습니다."}
+            )
 
         if participation_type == "NOT_PARTICIPATING" and raw_ids:
             raise serializers.ValidationError(
@@ -291,10 +327,12 @@ class ProductApplicationCreateSerializer(serializers.Serializer):
                 {"option_item_ids": "비전트립 코스는 1개만 선택할 수 있습니다."}
             )
 
+        # 사전등록(www)은 KOREA 옵션만 — GLOBAL은 영문 등 다른 채널용
+        _apply_audience = (ProductOptionItem.AUDIENCE_KOREA,)
         active_option_count = ProductOptionItem.objects.filter(
             product_id=product_id,
             is_active=True,
-            audience=ProductOptionItem.AUDIENCE_GLOBAL,
+            audience__in=_apply_audience,
         ).count()
         if participation_type in ("BEFORE_B2N", "AFTER_B2N") and active_option_count > 0:
             if len(raw_ids) != 1:
@@ -309,7 +347,7 @@ class ProductApplicationCreateSerializer(serializers.Serializer):
                 pk__in=raw_ids,
                 product_id=product_id,
                 is_active=True,
-                audience=ProductOptionItem.AUDIENCE_GLOBAL,
+                audience__in=_apply_audience,
             )
             if qs.count() != len(raw_ids):
                 raise serializers.ValidationError(
@@ -319,11 +357,40 @@ class ProductApplicationCreateSerializer(serializers.Serializer):
                 )
             options = sorted(qs, key=lambda o: raw_ids.index(o.pk))
 
+        additional_product = None
+        if tier != "NONE":
+            add_id = attrs.get("additional_product_id")
+            if not add_id:
+                raise serializers.ValidationError(
+                    {"additional_product_id": "추가 요금(1박2일/당일)을 선택한 경우 추가 상품이 필요합니다."}
+                )
+            try:
+                additional_product = Product.objects.get(pk=add_id)
+            except Product.DoesNotExist as e:
+                raise serializers.ValidationError(
+                    {"additional_product_id": "추가 상품을 찾을 수 없습니다."}
+                ) from e
+            if getattr(additional_product, "segment", "") != "ADDITIONAL":
+                raise serializers.ValidationError(
+                    {"additional_product_id": "추가 요금은 구분이 «추가상품»인 상품만 선택할 수 있습니다."}
+                )
+            if additional_product.status != "ACTIVE":
+                raise serializers.ValidationError(
+                    {"additional_product_id": "선택한 추가 상품이 비활성입니다."}
+                )
+        attrs["_additional_product"] = additional_product
+
         attrs["_product"] = product
         attrs["_options"] = options
 
         client_total = attrs.get("client_total_amount")
-        total = compute_total_amount(product, participation_type, options)
+        total = compute_application_total(
+            product,
+            participation_type,
+            options,
+            additional_product,
+            tier,
+        )
         if client_total is not None and client_total != total:
             raise serializers.ValidationError(
                 {
@@ -338,17 +405,28 @@ class ProductApplicationCreateSerializer(serializers.Serializer):
     def create(self, validated_data):
         product = validated_data.pop("_product")
         options = validated_data.pop("_options")
+        additional_product = validated_data.pop("_additional_product", None)
         participation_type = validated_data["participation_type"]
+        tier = validated_data.pop("additional_tier", "NONE")
         client_total = validated_data.pop("client_total_amount", None)
         applicant_email = validated_data.pop("applicant_email", "") or ""
         validated_data.pop("product_id", None)
         validated_data.pop("option_item_ids", None)
+        validated_data.pop("additional_product_id", None)
 
-        total = compute_total_amount(product, participation_type, options)
+        total = compute_application_total(
+            product,
+            participation_type,
+            options,
+            additional_product,
+            tier,
+        )
 
         app = ProductApplication.objects.create(
             product=product,
             participation_type=participation_type,
+            additional_product=additional_product,
+            additional_tier=tier,
             total_amount=total,
             client_total_amount=client_total,
             applicant_email=applicant_email,
@@ -362,3 +440,54 @@ class ProductApplicationCreateSerializer(serializers.Serializer):
             )
 
         return app
+
+
+def update_product_application_from_payload(app: ProductApplication, data: dict) -> ProductApplication:
+    """
+    관리자·내부용 — 기존 ProductApplication을 동일 검증 규칙으로 갱신하고 금액 재계산.
+    `data`는 ProductApplicationCreateSerializer와 동일 키 (client_total_amount 생략 가능).
+    """
+    payload = {**data}
+    if "applicant_email" not in payload:
+        payload["applicant_email"] = app.applicant_email or ""
+
+    ser = ProductApplicationCreateSerializer(data=payload)
+    ser.is_valid(raise_exception=True)
+    vd = ser.validated_data
+
+    product = vd.pop("_product")
+    options = vd.pop("_options")
+    additional_product = vd.pop("_additional_product", None)
+    participation_type = vd["participation_type"]
+    tier = vd.pop("additional_tier", "NONE")
+    vd.pop("client_total_amount", None)
+    vd.pop("product_id", None)
+    vd.pop("option_item_ids", None)
+    vd.pop("additional_product_id", None)
+    vd.pop("applicant_email", None)
+
+    total = compute_application_total(
+        product,
+        participation_type,
+        options,
+        additional_product,
+        tier,
+    )
+
+    app.product = product
+    app.participation_type = participation_type
+    app.additional_product = additional_product
+    app.additional_tier = tier
+    app.total_amount = total
+    app.client_total_amount = None
+    app.save()
+
+    ApplicationOptionItem.objects.filter(application=app).delete()
+    for opt in options:
+        ApplicationOptionItem.objects.create(
+            application=app,
+            option_item=opt,
+            selected_price=unit_price_for_option(opt, participation_type),
+        )
+
+    return app

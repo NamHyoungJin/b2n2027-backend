@@ -7,9 +7,32 @@ class Product(models.Model):
         ("INACTIVE", "INACTIVE"),
     ]
 
+    SEGMENT_CHOICES = [
+        ("BASIC", "기본상품"),
+        ("ADDITIONAL", "추가상품"),
+    ]
+
     name = models.CharField(max_length=200, verbose_name="상품명")
+    segment = models.CharField(
+        max_length=20,
+        choices=SEGMENT_CHOICES,
+        default="BASIC",
+        verbose_name="구분",
+    )
     description = models.TextField(blank=True, default="", verbose_name="상품 설명(HTML)")
     base_price = models.DecimalField(max_digits=12, decimal_places=0, verbose_name="기본 가격")
+    price_a_1n2d = models.DecimalField(
+        max_digits=12,
+        decimal_places=0,
+        default=0,
+        verbose_name="가격 A (1박2일)",
+    )
+    price_b_day = models.DecimalField(
+        max_digits=12,
+        decimal_places=0,
+        default=0,
+        verbose_name="가격 B (당일)",
+    )
     status = models.CharField(
         max_length=10,
         choices=STATUS_CHOICES,
@@ -144,8 +167,28 @@ class ProductApplication(models.Model):
         ("NOT_PARTICIPATING", "NOT_PARTICIPATING"),
     ]
 
+    ADDITIONAL_TIER_CHOICES = [
+        ("NONE", "NONE"),
+        ("ONE_NIGHT_TWO_DAYS", "ONE_NIGHT_TWO_DAYS"),
+        ("SAME_DAY", "SAME_DAY"),
+    ]
+
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="applications")
     participation_type = models.CharField(max_length=20, choices=PARTICIPATION_CHOICES)
+    additional_product = models.ForeignKey(
+        Product,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="additional_fee_applications",
+        verbose_name="추가 상품(선택)",
+    )
+    additional_tier = models.CharField(
+        max_length=30,
+        choices=ADDITIONAL_TIER_CHOICES,
+        default="NONE",
+        verbose_name="추가 상품 요금 구간",
+    )
     total_amount = models.DecimalField(max_digits=14, decimal_places=0)
     client_total_amount = models.DecimalField(
         max_digits=14,

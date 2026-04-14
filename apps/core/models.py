@@ -51,3 +51,33 @@ class Inquiry(models.Model):
 
     def __str__(self):
         return f"[{self.type}] {self.subject} <{self.email}>"
+
+
+class Sponsor(models.Model):
+    name = models.CharField(max_length=200)
+    image_s3_key = models.CharField(
+        max_length=1024,
+        blank=True,
+        default="",
+        help_text="S3 또는 로컬 MEDIA 경로 키 (sponsors/...). PlanDoc/s3Rules.md",
+    )
+    image = models.ImageField(
+        upload_to="sponsors/",
+        blank=True,
+        null=True,
+        verbose_name="스폰서 이미지(레거시)",
+    )
+    sort_order = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "sponsor"
+        ordering = ["sort_order", "id"]
+        indexes = [
+            models.Index(fields=["is_active", "sort_order"]),
+        ]
+
+    def __str__(self):
+        return self.name

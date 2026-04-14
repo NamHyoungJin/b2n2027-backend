@@ -1,4 +1,5 @@
 from django.urls import path
+from rest_framework.routers import DefaultRouter
 
 from .views import (
     GeneralInquiryView,
@@ -8,6 +9,13 @@ from .views import (
     SponsorInquiryView,
 )
 from .views_board_files import BoardFileUploadView
+from .views_sponsors import PublicSponsorViewSet, SponsorAdminViewSet
+
+admin_router = DefaultRouter()
+admin_router.register(r"board/sponsors", SponsorAdminViewSet, basename="admin-sponsor")
+
+public_router = DefaultRouter()
+public_router.register(r"public/sponsors", PublicSponsorViewSet, basename="public-sponsor")
 
 urlpatterns = [
     path("contact/sponsor-inquiry/", SponsorInquiryView.as_view(), name="sponsor-inquiry"),
@@ -17,3 +25,6 @@ urlpatterns = [
     path("contact/admin/inquiries/<int:inquiry_id>/answer/", InquiryAdminAnswerView.as_view(), name="admin-inquiry-answer"),
     path("board/files/upload/", BoardFileUploadView.as_view(), name="board-file-upload"),
 ]
+
+urlpatterns += admin_router.urls
+urlpatterns += public_router.urls

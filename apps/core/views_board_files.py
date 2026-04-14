@@ -12,6 +12,7 @@ from apps.core.s3_storage import (
     image_url_for_key,
     is_s3_configured,
     upload_product_option_file,
+    upload_sponsor_file,
 )
 
 MAX_UPLOAD_BYTES = 5 * 1024 * 1024
@@ -36,11 +37,14 @@ class BoardFileUploadView(B2nResponseMixin, APIView):
             return Response({"file": ["파일 크기는 5MB 이하여야 합니다."]}, status=status.HTTP_400_BAD_REQUEST)
 
         purpose = (request.data.get("purpose") or "product_option").strip()
-        if purpose != "product_option":
+        if purpose not in {"product_option", "sponsor"}:
             return Response({"purpose": ["지원하지 않는 purpose입니다."]}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            key = upload_product_option_file(f)
+            if purpose == "sponsor":
+                key = upload_sponsor_file(f)
+            else:
+                key = upload_product_option_file(f)
         except ValueError as e:
             return Response({"file": [str(e)]}, status=status.HTTP_400_BAD_REQUEST)
         except Exception:

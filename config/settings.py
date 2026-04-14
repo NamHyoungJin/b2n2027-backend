@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 import os
 from pathlib import Path
 
+from corsheaders.defaults import default_headers
 from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
@@ -215,6 +216,10 @@ _cors_origins = os.getenv(
 CORS_ALLOWED_ORIGINS = [o.strip() for o in _cors_origins.split(",") if o.strip()]
 
 CORS_ALLOW_CREDENTIALS = True
+# 참가자 확인 PATCH 등 `X-Participant-Token` 사용 시 preflight에 헤더 허용 필요
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    "x-participant-token",
+]
 
 # 관리자 JWT (frontend-admin)
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", SECRET_KEY)
@@ -270,16 +275,37 @@ else:
 SPONSOR_INQUIRY_TO = os.getenv("SPONSOR_INQUIRY_TO", "admin_kr@b2n2027.org")
 
 # S3 (비공개 버킷 + Presigned URL) — PlanDoc/s3Rules.md / 상품 옵션 이미지 등
-AWS_S3_BUCKET_NAME = os.getenv("AWS_S3_BUCKET_NAME", "").strip()
-AWS_S3_REGION = os.getenv("AWS_S3_REGION", "ap-northeast-2").strip()
+# 일부 .env 는 AWS_STORAGE_BUCKET_NAME / AWS_S3_REGION_NAME 만 쓰는 경우가 있어 별칭 허용
+AWS_S3_BUCKET_NAME = (
+    os.getenv("AWS_S3_BUCKET_NAME", "").strip() or os.getenv("AWS_STORAGE_BUCKET_NAME", "").strip()
+)
+AWS_S3_REGION = (
+    os.getenv("AWS_S3_REGION", "").strip()
+    or os.getenv("AWS_S3_REGION_NAME", "").strip()
+    or "ap-northeast-2"
+)
 AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID", "").strip()
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY", "").strip()
 # Presigned GET 유효 시간(초). 비어 있으면 7일.
 AWS_S3_PRESIGNED_GET_EXPIRES = int(os.getenv("AWS_S3_PRESIGNED_GET_EXPIRES", str(7 * 24 * 3600)))
+# True: 스폰서·상품옵션 이미지 URL을 Presigned 대신 공개 HTTPS URL로 내림(버킷 정책으로 GetObject 허용 필요).
+AWS_S3_PUBLIC_GET_FOR_MANAGED = _env_truthy("AWS_S3_PUBLIC_GET_FOR_MANAGED")
+# True: 위가 켜져 있어도 항상 Presigned만 사용(공개 URL 403·깨진 썸네일일 때 임시로 1).
+AWS_S3_FORCE_PRESIGNED_FOR_MANAGED = _env_truthy("AWS_S3_FORCE_PRESIGNED_FOR_MANAGED")
+# True: 업로드 시 ACL public-read(버킷이 ACL 허용할 때만). ACL 막힌 버킷은 버킷 정책으로 공개.
+AWS_S3_UPLOAD_ACL_PUBLIC_READ = _env_truthy("AWS_S3_UPLOAD_ACL_PUBLIC_READ")
 
 # 알리고 문자 (관리자 메시지 모듈)
 ALIGO_API_KEY = os.getenv("ALIGO_API_KEY", "").strip()
 ALIGO_USER_ID = os.getenv("ALIGO_USER_ID", "").strip()
+
+# 인증번호 등 단기 캐시 (로컬 메모리 — 단일 프로세스·개발용. 운영 다중 워커 시 Redis 권장)
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "b2n-default-cache",
+    }
+}
 
 # Google 클라우드 API 등 (메일 발송과 무관, 필요 시 앱 코드에서 사용)
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "").strip()

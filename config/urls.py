@@ -31,6 +31,6 @@ urlpatterns = [
     path('api/messages/', include('apps.messages.urls')),
 ]
 
-# Development 환경에서 Media 파일 서빙
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+# MEDIA_ROOT 로 저장된 파일(/media/...) — DEBUG=False 일 때만 조건부로 붙이면 로컬에서 파일이 있어도 404가 난다.
+# 운영은 보통 nginx 가 /media/ 를 직접 서빙하고, 그 앞단에서 막히면 Django 까지 오지 않는다.
+urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

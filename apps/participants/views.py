@@ -10,7 +10,11 @@ from rest_framework.filters import SearchFilter, OrderingFilter
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 
+from apps.admin_accounts.authentication import AdminJWTAuthentication
 from apps.core.mixins import B2nResponseMixin
+from apps.products.models import ApplicationOptionItem
+
+from django.db.models import Prefetch, Q
 
 from .models import Participant
 from .serializers import (
@@ -26,14 +30,42 @@ logger = logging.getLogger(__name__)
 class ParticipantViewSet(B2nResponseMixin, viewsets.ModelViewSet):
     """참여자 관리 ViewSet"""
 
+    authentication_classes = [AdminJWTAuthentication]
     parser_classes = [JSONParser, MultiPartParser, FormParser]
-    queryset = Participant.objects.all()
+    queryset = (
+        Participant.objects.select_related(
+            "product_application__product",
+            "product_application__additional_product",
+        )
+        .prefetch_related(
+            Prefetch(
+                "product_application__option_lines",
+                queryset=ApplicationOptionItem.objects.select_related("option_item"),
+            ),
+        )
+    )
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ['status', 'register_type', 'payment_method']
     search_fields = ['name', 'email', 'phone']
     ordering_fields = ['created_at', 'name']
     ordering = ['-created_at']
-    
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        org = (self.request.query_params.get('organization') or '').strip()
+        if org:
+            qs = qs.filter(organization__icontains=org)
+        gid = (self.request.query_params.get('group_id') or '').strip()
+        if gid:
+            try:
+                gid_int = int(gid)
+            except ValueError:
+                pass
+            else:
+                # 대표(pk=gid) 또는 해당 단체 소속(group_id=gid)
+                qs = qs.filter(Q(pk=gid_int) | Q(group_id=gid_int))
+        return qs
+
     def get_serializer_class(self):
         """액션에 따라 적절한 Serializer 반환"""
         if self.action == 'list':
@@ -43,9 +75,43 @@ class ParticipantViewSet(B2nResponseMixin, viewsets.ModelViewSet):
         return ParticipantSerializer
     
     def create(self, request, *args, **kwargs):
-        """참여자 등록"""
+        """참여자 등록 — 비로그인(www)은 `phone_verification_token` 필수."""
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+
+        user = getattr(request, "user", None)
+        is_admin = bool(
+            user is not None
+            and getattr(user, "is_authenticated", False)
+            and not getattr(user, "is_anonymous", True)
+        )
+        if not is_admin:
+            from .public_registration import verify_registration_phone_token
+
+            skip_verify = (
+                serializer.validated_data.get("group_member_without_phone_verification") is True
+            )
+            token = (serializer.validated_data.get("phone_verification_token") or "").strip()
+            phone = serializer.validated_data.get("phone", "")
+            if skip_verify:
+                org = (serializer.validated_data.get("organization") or "").strip()
+                if not org:
+                    return Response(
+                        {
+                            "detail": "단체 추가 참가자는 소속(단체명)이 입력된 경우에만 "
+                            "문자 인증 없이 등록할 수 있습니다.",
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+            elif not verify_registration_phone_token(token, phone):
+                return Response(
+                    {
+                        "detail": "휴대폰 인증이 필요합니다. "
+                        "연락처 인증을 완료한 뒤 다시 시도해 주세요.",
+                    },
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
         self.perform_create(serializer)
         
         # 생성된 참여자 정보 전체 반환

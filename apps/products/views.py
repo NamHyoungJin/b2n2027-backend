@@ -27,7 +27,7 @@ class ProductAdminViewSet(B2nResponseMixin, viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     parser_classes = [JSONParser, MultiPartParser, FormParser]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = ["status"]
+    filterset_fields = ["status", "segment"]
     search_fields = ["name", "description"]
     ordering_fields = ["created_at", "name", "base_price", "id"]
     ordering = ["-created_at"]

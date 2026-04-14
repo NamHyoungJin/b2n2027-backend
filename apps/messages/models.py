@@ -208,3 +208,20 @@ class MessageTemplate(models.Model):
         indexes = [
             models.Index(fields=["channel", "is_active"], name="idx_msg_tpl_channel_active"),
         ]
+
+
+def get_default_sms_sender_number() -> str | None:
+    """문자 발신번호 관리에 등록된 번호 중 승인완료·삭제되지 않은 것 중 id가 가장 작은(가장 먼저 등록된) 번호."""
+    row = (
+        MessageSenderNumber.objects.filter(
+            deleted_at__isnull=True,
+            status=MessageSenderNumber.STATUS_APPROVED,
+        )
+        .order_by("id")
+        .values_list("sender_number", flat=True)
+        .first()
+    )
+    if not row:
+        return None
+    s = str(row).strip()
+    return s or None
