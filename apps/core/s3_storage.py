@@ -19,6 +19,24 @@ from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
+
+def _format_s3_exception(exc: BaseException) -> str:
+    """로그용 — 자격·권한·버킷 오류 구분 (비밀번호는 노출하지 않음)."""
+    try:
+        from botocore.exceptions import ClientError  # noqa: PLC0415
+
+        if isinstance(exc, ClientError):
+            err = (exc.response or {}).get("Error") or {}
+            meta = (exc.response or {}).get("ResponseMetadata") or {}
+            return (
+                f"ClientError Code={err.get('Code')!r} Message={err.get('Message')!r} "
+                f"RequestId={meta.get('RequestId')!r} HTTPStatusCode={meta.get('HTTPStatusCode')!r}"
+            )
+    except Exception:
+        pass
+    return f"{type(exc).__name__}: {exc}"
+
+
 PRODUCT_OPTION_PREFIX = "product-option-items"
 SPONSOR_PREFIX = "sponsors"
 
@@ -72,7 +90,15 @@ def generate_sponsor_key(original_name: str) -> str:
     return f"{SPONSOR_PREFIX}/{now:%Y/%m}/{uuid.uuid4().hex}{ext}"
 
 
-def _upload_fileobj_to_s3(client, bucket: str, key: str, uploaded_file, content_type: str) -> None:
+def _upload_fileobj_to_s3(
+    client,
+    bucket: str,
+    key: str,
+    uploaded_file,
+    content_type: str,
+    *,
+    upload_context: str,
+) -> None:
     """ACL public-read 가 버킷에서 거절되면 Content-Type 만으로 재시도."""
     from botocore.exceptions import ClientError  # noqa: PLC0415
 
@@ -84,16 +110,38 @@ def _upload_fileobj_to_s3(client, bucket: str, key: str, uploaded_file, content_
         code = e.response.get("Error", {}).get("Code", "")
         if code == "AccessControlListNotSupported" and extra.get("ACL"):
             uploaded_file.seek(0)
-            client.upload_fileobj(
-                uploaded_file,
-                Bucket=bucket,
-                Key=key,
-                ExtraArgs={"ContentType": content_type},
-            )
+            try:
+                client.upload_fileobj(
+                    uploaded_file,
+                    Bucket=bucket,
+                    Key=key,
+                    ExtraArgs={"ContentType": content_type},
+                )
+            except ClientError as e2:
+                logger.error(
+                    "S3 PutObject failed after ACL-stripped retry context=%s bucket=%s key=%s content_type=%s %s",
+                    upload_context,
+                    bucket,
+                    key,
+                    content_type,
+                    _format_s3_exception(e2),
+                )
+                raise
             logger.warning(
-                "S3 ACL public-read not supported; uploaded without ACL — add bucket policy for public GetObject."
+                "S3 ACL public-read not supported; uploaded without ACL — add bucket policy for public GetObject. context=%s key=%s",
+                upload_context,
+                key,
             )
         else:
+            logger.error(
+                "S3 PutObject failed context=%s bucket=%s key=%s content_type=%s extra_keys=%s %s",
+                upload_context,
+                bucket,
+                key,
+                content_type,
+                list(extra.keys()),
+                _format_s3_exception(e),
+            )
             raise
 
 
@@ -121,8 +169,18 @@ def upload_product_option_file(uploaded_file) -> str:
             aws_access_key_id=settings.AWS_ACCESS_KEY_ID or None,
             aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY or None,
         )
-        _upload_fileobj_to_s3(client, bucket, key, uploaded_file, content_type)
-        logger.info("S3 upload ok key=%s", key)
+        logger.info(
+            "S3 upload start context=product_option bucket=%s region=%s key=%s content_type=%s static_credentials=%s",
+            bucket,
+            region,
+            key,
+            content_type,
+            bool(settings.AWS_ACCESS_KEY_ID and settings.AWS_SECRET_ACCESS_KEY),
+        )
+        _upload_fileobj_to_s3(
+            client, bucket, key, uploaded_file, content_type, upload_context="product_option"
+        )
+        logger.info("S3 upload ok context=product_option key=%s", key)
         return key
 
     root = Path(settings.MEDIA_ROOT)
@@ -157,8 +215,16 @@ def upload_sponsor_file(uploaded_file) -> str:
             aws_access_key_id=settings.AWS_ACCESS_KEY_ID or None,
             aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY or None,
         )
-        _upload_fileobj_to_s3(client, bucket, key, uploaded_file, content_type)
-        logger.info("S3 upload ok key=%s", key)
+        logger.info(
+            "S3 upload start context=sponsor bucket=%s region=%s key=%s content_type=%s static_credentials=%s",
+            bucket,
+            region,
+            key,
+            content_type,
+            bool(settings.AWS_ACCESS_KEY_ID and settings.AWS_SECRET_ACCESS_KEY),
+        )
+        _upload_fileobj_to_s3(client, bucket, key, uploaded_file, content_type, upload_context="sponsor")
+        logger.info("S3 upload ok context=sponsor key=%s", key)
         return key
 
     root = Path(settings.MEDIA_ROOT)
@@ -208,7 +274,8 @@ def presigned_get_url(key: str) -> str | None:
         return None
     try:
         import boto3  # noqa: PLC0415
-    except ImportError:
+    except ImportError as exc:
+        logger.error("S3 presigned GET skipped: boto3 not installed (%s)", exc)
         return None
     bucket = settings.AWS_S3_BUCKET_NAME
     region = getattr(settings, "AWS_S3_REGION", "ap-northeast-2")
@@ -219,11 +286,24 @@ def presigned_get_url(key: str) -> str | None:
         aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY or None,
     )
     expires = int(getattr(settings, "AWS_S3_PRESIGNED_GET_EXPIRES", 604800))
-    return client.generate_presigned_url(
-        "get_object",
-        Params={"Bucket": bucket, "Key": key},
-        ExpiresIn=expires,
-    )
+    try:
+        return client.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": bucket, "Key": key},
+            ExpiresIn=expires,
+        )
+    except Exception as exc:
+        logger.error(
+            "S3 presigned GetObject URL generation failed bucket=%s region=%s key=%s ExpiresIn=%s static_credentials=%s %s",
+            bucket,
+            region,
+            key,
+            expires,
+            bool(settings.AWS_ACCESS_KEY_ID and settings.AWS_SECRET_ACCESS_KEY),
+            _format_s3_exception(exc),
+            exc_info=True,
+        )
+        return None
 
 
 def _local_media_file_exists(key: str) -> bool:

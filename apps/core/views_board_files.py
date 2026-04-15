@@ -1,5 +1,7 @@
 """관리자 전용 파일 업로드 — POST /api/board/files/upload/ (PlanDoc/s3Rules.md)."""
 
+import logging
+
 from rest_framework import status
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
@@ -16,6 +18,8 @@ from apps.core.s3_storage import (
 )
 
 MAX_UPLOAD_BYTES = 5 * 1024 * 1024
+
+logger = logging.getLogger(__name__)
 
 
 class BoardFileUploadView(B2nResponseMixin, APIView):
@@ -48,6 +52,14 @@ class BoardFileUploadView(B2nResponseMixin, APIView):
         except ValueError as e:
             return Response({"file": [str(e)]}, status=status.HTTP_400_BAD_REQUEST)
         except Exception:
+            logger.exception(
+                "POST /api/board/files/upload/ failed purpose=%s filename=%s size=%s content_type=%s s3_configured=%s",
+                purpose,
+                getattr(f, "name", ""),
+                getattr(f, "size", None),
+                getattr(f, "content_type", ""),
+                is_s3_configured(),
+            )
             return Response({"detail": ["업로드에 실패했습니다."]}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         url = image_url_for_key(key, request)
