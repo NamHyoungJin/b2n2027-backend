@@ -325,9 +325,24 @@ class ConfirmGroupMembersView(B2nResponseMixin, APIView):
                     "status": p.status,
                     "status_display": p.get_status_display(),
                     "phone": p.phone,
+                    "email": p.email or "",
+                    "gender": p.gender or "",
+                    "church_role": p.church_role or "",
+                    "age_group": p.age_group or "",
+                    "attendee_category": p.attendee_category or "",
+                    "attendee_category_display": p.get_attendee_category_display(),
+                    "is_group_representative": p.group_id is not None and p.pk == p.group_id,
                 }
             )
-        return Response({"members": members, "group_id": me.group_id})
+        viewer_is_group_representative = me.group_id is not None and me.pk == me.group_id
+        return Response(
+            {
+                "members": members,
+                "group_id": me.group_id,
+                "viewer_is_group_representative": viewer_is_group_representative,
+                "viewer_participant_id": me.pk,
+            }
+        )
 
 
 class ConfirmParticipantByIdView(B2nResponseMixin, APIView):
@@ -364,7 +379,7 @@ class ConfirmParticipantByIdView(B2nResponseMixin, APIView):
 
         if other.status not in ("APPLYING", "REVIEWING"):
             return Response(
-                {"detail": "현재 상태에서는 신청 내용을 수정할 수 없습니다."},
+                {"detail": "해당 참가자가 신청중 또는 신청확인중일 때만 신청 내용을 수정할 수 있습니다."},
                 status=status.HTTP_403_FORBIDDEN,
             )
 
@@ -385,3 +400,38 @@ class ConfirmParticipantByIdView(B2nResponseMixin, APIView):
 
         other.refresh_from_db()
         return Response(_participant_confirm_response_data(other))
+
+    def delete(self, request, pk):
+        """동일 단체 소속 참가자 삭제. 단체 대표만 가능하며, 대표 본인 행은 삭제할 수 없음."""
+        token = confirm_token_from_request(request)
+        if not token:
+            return Response({"detail": "인증이 필요합니다."}, status=status.HTTP_401_UNAUTHORIZED)
+        try:
+            me = _participant_from_token(token)
+        except (signing.BadSignature, signing.SignatureExpired, ValueError, Participant.DoesNotExist):
+            return Response({"detail": "세션이 만료되었거나 유효하지 않습니다."}, status=status.HTTP_401_UNAUTHORIZED)
+
+        other = get_object_or_404(Participant, pk=pk)
+        if not _can_access_same_group(me, other):
+            return Response({"detail": "접근할 수 없습니다."}, status=status.HTTP_403_FORBIDDEN)
+
+        if me.group_id is None or me.pk != me.group_id:
+            return Response(
+                {"detail": "단체 대표만 참가자를 삭제할 수 있습니다."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if other.group_id is not None and other.pk == other.group_id:
+            return Response(
+                {"detail": "단체 대표는 삭제할 수 없습니다."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if other.status not in ("APPLYING", "REVIEWING"):
+            return Response(
+                {"detail": "해당 참가자가 신청중 또는 신청확인중일 때만 삭제할 수 있습니다."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        other.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)

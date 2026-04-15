@@ -16,16 +16,19 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from django.core import signing
+
 from apps.core.mixins import B2nResponseMixin
 from apps.products.serializers import ProductApplicationCreateSerializer
 
 from .models import Participant
+from .public_confirmation import confirm_token_from_request, _participant_from_token
 from .public_registration import verify_registration_phone_token
 from .serializers import MAX_PASSPORT_COPY_BYTES, ParticipantCreateSerializer, ParticipantSerializer
 
 logger = logging.getLogger(__name__)
 
-MAX_BATCH = 30
+MAX_BATCH = 300
 
 
 def _require_public_phone(participant_serializer: ParticipantCreateSerializer) -> None:
@@ -69,6 +72,8 @@ class RegisterBatchView(B2nResponseMixin, APIView):
         application_template = body.get("application_template")
         participants_in = body.get("participants")
         passport_meta = body.get("passport_copy")
+        # 참가신청 확인 토큰으로 단체 대표 본인 그룹에만 행 추가 (엑셀 일괄)
+        confirm_append_group = body.get("confirm_append_group") is True
 
         if not isinstance(application_template, dict):
             return Response(
@@ -123,11 +128,40 @@ class RegisterBatchView(B2nResponseMixin, APIView):
             and not getattr(user, "is_anonymous", True)
         )
 
+        initial_anchor: int | None = None
+        if confirm_append_group:
+            token = confirm_token_from_request(request)
+            if not token:
+                return Response(
+                    {"detail": "단체 추가 등록에는 휴대폰 인증 후 발급된 토큰이 필요합니다."},
+                    status=status.HTTP_401_UNAUTHORIZED,
+                )
+            try:
+                me = _participant_from_token(token)
+            except (signing.BadSignature, signing.SignatureExpired, ValueError, Participant.DoesNotExist):
+                return Response(
+                    {"detail": "세션이 만료되었거나 유효하지 않습니다."},
+                    status=status.HTTP_401_UNAUTHORIZED,
+                )
+            if me.group_id is None or me.group_id != me.pk:
+                return Response(
+                    {"detail": "단체 대표만 단체에 추가 등록할 수 있습니다."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            if me.status not in ("APPLYING", "REVIEWING"):
+                return Response(
+                    {
+                        "detail": "본인(인증된 참가자) 상태가 신청중 또는 신청확인중일 때만 추가 등록할 수 있습니다.",
+                    },
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            initial_anchor = me.pk
+
         created_payloads: list[dict] = []
 
         try:
             with transaction.atomic():
-                anchor_pk: int | None = None
+                anchor_pk: int | None = initial_anchor
 
                 for idx, row in enumerate(participants_in):
                     if not isinstance(row, dict):
@@ -158,7 +192,7 @@ class RegisterBatchView(B2nResponseMixin, APIView):
                     inst = Participant.objects.get(pk=p_ser.instance.pk)
                     created_payloads.append(ParticipantSerializer(inst).data)
 
-                    if anchor_pk is None:
+                    if initial_anchor is None and anchor_pk is None:
                         anchor_pk = inst.pk
 
         except APIException as e:
