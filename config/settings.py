@@ -68,6 +68,7 @@ INSTALLED_APPS = [
     'apps.participants',
     'apps.admin_accounts',
     'apps.board_notice',
+    'apps.homepage_doc',
     'apps.products',
     'apps.messages.apps.MessagesConfig',
 ]

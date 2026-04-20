@@ -20,15 +20,9 @@ from django.conf import settings
 from django.conf.urls.static import static
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('api/', include('apps.core.urls')),
-    path('api/', include('apps.participants.urls')),
-    path('api/adminMember/', include('apps.admin_accounts.urls')),
-    path('api/notices/', include('apps.board_notice.urls_public')),
-    path('api/board/notices/', include('apps.board_notice.urls_admin')),
-    path('api/board/products/', include('apps.products.urls_admin')),
-    path('api/public/products/', include('apps.products.urls_public')),
-    path('api/messages/', include('apps.messages.urls')),
+    path("admin/", admin.site.urls),
+    # `/api/*` 전부 — 순서는 `config/api_urls.py` 안에서 관리 (주석 참고)
+    path("api/", include("config.api_urls")),
 ]
 
 # MEDIA_ROOT 로 저장된 파일(/media/...) — DEBUG=False 일 때만 조건부로 붙이면 로컬에서 파일이 있어도 404가 난다.
